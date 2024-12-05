@@ -16,7 +16,7 @@ type ClientInfo struct {
 }
 
 const (
-	INPUT_ERROR = "Usage: <ip address> <port_number> <command>"
+	INPUT_ERROR = "Usage: <ip address> <port_number>"
 )
 
 func exit() {
@@ -47,7 +47,7 @@ func checkArgs(clientInfo *ClientInfo) {
 }
 
 func parseArgs(clientInfo *ClientInfo) {
-	if len(os.Args) < 2 {
+	if len(os.Args) < 3 {
 		fmt.Println(INPUT_ERROR)
 		exit()
 	}

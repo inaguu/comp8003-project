@@ -50,7 +50,7 @@ func checkArgs(serverInfo *ServerInfo) {
 }
 
 func parseArgs(serverInfo *ServerInfo) {
-	if len(os.Args) < 2 {
+	if len(os.Args) < 3 {
 		fmt.Println(INPUT_ERROR)
 		exit()
 	}
