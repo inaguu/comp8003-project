@@ -1,16 +1,21 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
+	"strings"
 )
 
 type ServerInfo struct {
-	Socket        *net.TCPListener
-	ClientAddress net.Conn
+	Socket     *net.TCPListener
+	Connection net.Conn
 
 	Ip, Port string
+	Command  string
+	Output   string
 }
 
 const (
@@ -65,13 +70,14 @@ func bindSocket(serverInfo *ServerInfo) {
 		exit()
 	}
 
-	connection, err := net.ListenTCP("tcp", s)
+	socket, err := net.ListenTCP("tcp", s)
 	if err != nil {
 		fmt.Println(err)
+		socket.Close()
 		exit()
 	}
 
-	serverInfo.Socket = connection
+	serverInfo.Socket = socket
 }
 
 func receiveClient(serverInfo *ServerInfo) {
@@ -82,33 +88,54 @@ func receiveClient(serverInfo *ServerInfo) {
 			exit()
 		}
 
-		serverInfo.ClientAddress = conn
+		serverInfo.Connection = conn
 		handleConnection(serverInfo)
 	}
 }
 
 func handleConnection(serverInfo *ServerInfo) {
-	defer serverInfo.ClientAddress.Close()
-	fmt.Println("Connected to:", serverInfo.ClientAddress.RemoteAddr())
+	fmt.Println("\nConnected to:", serverInfo.Connection.RemoteAddr())
 
-	buffer := make([]byte, 1024)
-	_, err := serverInfo.ClientAddress.Read(buffer)
+	data, err := bufio.NewReader(serverInfo.Connection).ReadString('\n')
 	if err != nil {
 		fmt.Println(err)
-		exit()
+		output := []byte(fmt.Sprintf("Error reading from client: %v\n", err))
+		serverInfo.Output = string(output)
+		sendOutput((serverInfo))
+		return
 	}
 
-	fmt.Println(string(buffer))
+	fmt.Print("User executed the command: ", data)
+	serverInfo.Command = data
+	runCommand(serverInfo)
+}
 
-	output := []byte("hello")
+func runCommand(serverInfo *ServerInfo) {
+	commandArr := strings.TrimSpace(serverInfo.Command)
+	parts := strings.Fields(commandArr)
 
-	_, err = serverInfo.ClientAddress.Write(output)
+	cmd := exec.Command(parts[0], parts[1:]...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		output = []byte(fmt.Sprintf("Error executing command: %v\n", err))
+		serverInfo.Output = string(output)
+		sendOutput((serverInfo))
+		return
+	}
+
+	serverInfo.Output = string(output)
+	sendOutput((serverInfo))
+}
+
+func sendOutput(serverInfo *ServerInfo) {
+	_, err := serverInfo.Connection.Write([]byte(serverInfo.Output))
 	if err != nil {
 		fmt.Println(err)
-		exit()
+		return
 	}
 
-	serverInfo.ClientAddress.Close()
+	fmt.Println("Connection closed with:", serverInfo.Connection.RemoteAddr())
+	serverInfo.Connection.Close()
 }
 
 func main() {

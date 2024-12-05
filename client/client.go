@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 type ClientInfo struct {
@@ -58,11 +59,27 @@ func parseArgs(clientInfo *ClientInfo) {
 
 }
 
+func getCommand(clientInfo *ClientInfo) {
+	fmt.Print("Enter command to execute: ")
+	reader := bufio.NewReader(os.Stdin)
+	command, _ := reader.ReadString('\n')
+
+	checkCommand := strings.TrimSuffix(command, "\n")
+
+	if checkCommand == "" {
+		fmt.Println("No command provided.")
+		exit()
+	}
+
+	clientInfo.Command = command
+}
+
 func bindAndConnect(clientInfo *ClientInfo) {
 	s, _ := net.ResolveTCPAddr("tcp", address(clientInfo.Ip, clientInfo.Port))
 	c, err := net.DialTCP("tcp", nil, s)
 	if err != nil {
 		fmt.Println(err)
+		c.Close()
 		exit()
 	}
 
@@ -71,19 +88,12 @@ func bindAndConnect(clientInfo *ClientInfo) {
 	fmt.Printf("The TCP server is %s\n", clientInfo.Connection.RemoteAddr().String())
 }
 
-func getCommand(clientInfo *ClientInfo) {
-	fmt.Print("Enter command to execute: ")
-	reader := bufio.NewReader(os.Stdin)
-	command, _ := reader.ReadString('\n')
-
-	clientInfo.Command = command
-}
-
 func sendCommand(clientInfo *ClientInfo) {
 	_, err := clientInfo.Connection.Write([]byte(clientInfo.Command))
 	if err != nil {
 		fmt.Println("Error sending command:", err)
-		return
+		clientInfo.Connection.Close()
+		exit()
 	}
 }
 
@@ -92,7 +102,8 @@ func getResponse(clientInfo *ClientInfo) {
 	_, err := clientInfo.Connection.Read(buffer)
 	if err != nil {
 		fmt.Println("Error reading output:", err)
-		return
+		clientInfo.Connection.Close()
+		exit()
 	}
 
 	fmt.Println(string(buffer))
