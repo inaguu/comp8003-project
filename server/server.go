@@ -7,85 +7,82 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 type ServerInfo struct {
 	Socket     *net.TCPListener
 	Connection net.Conn
 
-	Ip, Port string
+	IP, Port string
 	Command  string
 	Output   string
 }
 
 const (
-	INPUT_ERROR = "Usage: <ip address> <port_number>"
+	InputError  = "Usage: <ip address> <port_number>"
+	ExitMessage = "Exiting..."
+	BufferSize  = 1024
+	Timeout     = 5 * time.Second
 )
 
-func exit() {
-	fmt.Println("Exiting...")
-	os.Exit(0)
+func exitWithMessage(message string) {
+	fmt.Println(message)
+	os.Exit(1)
 }
 
-func address(ip string, port string) string {
-	unparsedIp := ip
+func constructAddress(ip, port string) string {
 	if ip == "localhost" {
-		unparsedIp = "127.0.0.1"
+		ip = "127.0.0.1"
 	}
 
-	parsedIp := net.ParseIP(unparsedIp)
-
-	if parsedIp == nil {
+	parsedIP := net.ParseIP(ip)
+	if parsedIP == nil {
 		return ""
 	}
 
-	return net.JoinHostPort(parsedIp.String(), port)
+	return net.JoinHostPort(parsedIP.String(), port)
 }
 
-func checkArgs(serverInfo *ServerInfo) {
-	if address(serverInfo.Ip, serverInfo.Port) == "" {
-		fmt.Printf("%s and %s is not a valid ip and port combination", serverInfo.Ip, serverInfo.Port)
-		exit()
+func validateAddress(ip, port string) {
+	if constructAddress(ip, port) == "" {
+		exitWithMessage(fmt.Sprintf("Invalid IP and port combination: %s:%s", ip, port))
 	}
 }
 
-func parseArgs(serverInfo *ServerInfo) {
+func parseArguments(serverInfo *ServerInfo) {
 	if len(os.Args) < 3 {
-		fmt.Println(INPUT_ERROR)
-		exit()
+		exitWithMessage(InputError)
 	}
 
-	serverInfo.Ip = os.Args[1]
+	serverInfo.IP = os.Args[1]
 	serverInfo.Port = os.Args[2]
+	validateAddress(serverInfo.IP, serverInfo.Port)
 
-	checkArgs(serverInfo)
-
-	fmt.Printf("The TCP server is %s\n", address(serverInfo.Ip, serverInfo.Port))
+	fmt.Printf("The TCP server is %s\n", constructAddress(serverInfo.IP, serverInfo.Port))
 }
 
 func bindSocket(serverInfo *ServerInfo) {
-	s, err := net.ResolveTCPAddr("tcp", address(serverInfo.Ip, serverInfo.Port))
+	serverAddr, err := net.ResolveTCPAddr("tcp", constructAddress(serverInfo.IP, serverInfo.Port))
 	if err != nil {
-		fmt.Println(err)
-		exit()
+		exitWithMessage("Failed to resolve server address: " + err.Error())
 	}
 
-	socket, err := net.ListenTCP("tcp", s)
+	socket, err := net.ListenTCP("tcp", serverAddr)
 	if err != nil {
-		fmt.Println(err)
-		socket.Close()
-		exit()
+		exitWithMessage("Failed to bind socket: " + err.Error())
 	}
 
 	serverInfo.Socket = socket
+	fmt.Println("Server is listening for connections...")
 }
 
-func receiveClient(serverInfo *ServerInfo) {
+func receiveClients(serverInfo *ServerInfo) {
 	for {
 		conn, err := serverInfo.Socket.Accept()
 		if err != nil {
-			fmt.Println(err)
-			exit()
+			fmt.Println("Error accepting connection:", err)
+			continue
 		}
 
 		serverInfo.Connection = conn
@@ -95,52 +92,57 @@ func receiveClient(serverInfo *ServerInfo) {
 
 func handleConnection(serverInfo *ServerInfo) {
 	fmt.Println("\nConnected to:", serverInfo.Connection.RemoteAddr())
+	defer serverInfo.Connection.Close()
 
+	serverInfo.Connection.SetReadDeadline(time.Now().Add(Timeout))
 	data, err := bufio.NewReader(serverInfo.Connection).ReadString('\n')
 	if err != nil {
-		fmt.Println(err)
-		output := []byte(fmt.Sprintf("Error reading from client: %v\n", err))
-		serverInfo.Output = string(output)
-		sendOutput((serverInfo))
+		fmt.Println("Error reading from client:", err)
+		serverInfo.Output = fmt.Sprintf("Error reading from client: %v\n", err)
+		sendOutput(serverInfo)
 		return
 	}
 
-	fmt.Print("User executed the command: ", data)
-	serverInfo.Command = data
+	serverInfo.Command = strings.TrimSpace(data)
+	fmt.Println("User executed the command:", serverInfo.Command)
 	runCommand(serverInfo)
 }
 
 func runCommand(serverInfo *ServerInfo) {
-	commandArr := strings.TrimSpace(serverInfo.Command)
-	parts := strings.Fields(commandArr)
+	parts := strings.Fields(serverInfo.Command)
+	if len(parts) == 0 {
+		serverInfo.Output = "No command provided."
+		sendOutput(serverInfo)
+		return
+	}
 
 	cmd := exec.Command(parts[0], parts[1:]...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		output = []byte(fmt.Sprintf("Error executing command: %v\n", err))
-		serverInfo.Output = string(output)
-		sendOutput((serverInfo))
+		serverInfo.Output = fmt.Sprintf("Error executing command: %v\n", err)
+		sendOutput(serverInfo)
 		return
 	}
 
 	serverInfo.Output = string(output)
-	sendOutput((serverInfo))
+	sendOutput(serverInfo)
 }
 
 func sendOutput(serverInfo *ServerInfo) {
-	_, err := serverInfo.Connection.Write([]byte(serverInfo.Output))
+	_, err := serverInfo.Connection.Write([]byte(serverInfo.Output + "\n"))
 	if err != nil {
-		fmt.Println(err)
-		return
+		fmt.Println("Error sending output to client:", err)
 	}
 
 	fmt.Println("Connection closed with:", serverInfo.Connection.RemoteAddr())
-	serverInfo.Connection.Close()
 }
 
 func main() {
-	serverInfo := ServerInfo{}
-	parseArgs(&serverInfo)
-	bindSocket(&serverInfo)
-	receiveClient(&serverInfo)
+	serverInfo := &ServerInfo{}
+
+	parseArguments(serverInfo)
+
+	bindSocket(serverInfo)
+
+	receiveClients(serverInfo)
 }
