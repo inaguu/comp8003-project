@@ -22,7 +22,6 @@ type ServerInfo struct {
 const (
 	InputError  = "Usage: <ip address> <port_number>"
 	ExitMessage = "Exiting..."
-	BufferSize  = 1024
 	Timeout     = 5 * time.Second
 )
 
