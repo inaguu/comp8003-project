@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -31,8 +32,8 @@ func exitWithMessage(message string) {
 }
 
 func constructAddress(ip, port string) string {
-	if ip == "localhost" {
-		ip = "127.0.0.1"
+	if ip == "both" {
+		ip = "::"
 	}
 
 	parsedIP := net.ParseIP(ip)
@@ -107,12 +108,26 @@ func handleConnection(serverInfo *ServerInfo) {
 	runCommand(serverInfo)
 }
 
+func checkHomePath(path string) string {
+	if strings.HasPrefix(path, "~") {
+		homeDir, err := os.UserHomeDir()
+		if err == nil {
+			path = filepath.Join(homeDir, path[1:])
+		}
+	}
+	return path
+}
+
 func runCommand(serverInfo *ServerInfo) {
 	parts := strings.Fields(serverInfo.Command)
 	if len(parts) == 0 {
 		serverInfo.Output = "No command provided."
 		sendOutput(serverInfo)
 		return
+	}
+
+	if len(parts) > 1 {
+		parts[1] = checkHomePath(parts[1])
 	}
 
 	cmd := exec.Command(parts[0], parts[1:]...)

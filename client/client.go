@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"net"
 	"os"
@@ -17,7 +16,7 @@ type ClientInfo struct {
 }
 
 const (
-	InputError  = "Usage: <ip address> <port_number>"
+	InputError  = "Usage: <ip address> <port_number> <command>"
 	ExitMessage = "Exiting..."
 	BufferSize  = 1024
 	Timeout     = 5 * time.Second
@@ -48,30 +47,36 @@ func validateAddress(ip, port string) {
 }
 
 func parseArguments(clientInfo *ClientInfo) {
-	if len(os.Args) < 3 {
+	if len(os.Args) < 4 {
 		exitWithMessage(InputError)
 	}
 
 	clientInfo.IP = os.Args[1]
 	clientInfo.Port = os.Args[2]
-	validateAddress(clientInfo.IP, clientInfo.Port)
-}
+	clientInfo.Command = strings.Join(os.Args[3:], " ")
 
-func promptForCommand(clientInfo *ClientInfo) {
-	fmt.Print("Enter command to execute: ")
-	reader := bufio.NewReader(os.Stdin)
-	command, err := reader.ReadString('\n')
-	if err != nil {
-		exitWithMessage("Failed to read command: " + err.Error())
-	}
-
-	command = strings.TrimSpace(command)
-	if command == "" {
+	if clientInfo.Command == "" {
 		exitWithMessage("No command provided.")
 	}
 
-	clientInfo.Command = command
+	validateAddress(clientInfo.IP, clientInfo.Port)
 }
+
+// func promptForCommand(clientInfo *ClientInfo) {
+// 	fmt.Print("Enter command to execute: ")
+// 	reader := bufio.NewReader(os.Stdin)
+// 	command, err := reader.ReadString('\n')
+// 	if err != nil {
+// 		exitWithMessage("Failed to read command: " + err.Error())
+// 	}
+
+// 	command = strings.TrimSpace(command)
+// 	if command == "" {
+// 		exitWithMessage("No command provided.")
+// 	}
+
+// 	clientInfo.Command = command
+// }
 
 func connectToServer(clientInfo *ClientInfo) {
 	serverAddr, err := net.ResolveTCPAddr("tcp", constructAddress(clientInfo.IP, clientInfo.Port))
@@ -103,7 +108,7 @@ func receiveResponse(clientInfo *ClientInfo) {
 		exitWithMessage("Error reading response: " + err.Error())
 	}
 
-	fmt.Printf("Server response: %s\n", strings.TrimSpace(string(buffer[:n])))
+	fmt.Printf("Server response: \n%s", strings.TrimSpace(string(buffer[:n])))
 }
 
 func main() {
@@ -111,7 +116,7 @@ func main() {
 
 	parseArguments(clientInfo)
 
-	promptForCommand(clientInfo)
+	// promptForCommand(clientInfo)
 
 	connectToServer(clientInfo)
 	defer clientInfo.Connection.Close()
