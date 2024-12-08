@@ -1,0 +1,29 @@
+digraph Server {
+    node [shape = circle; fontsize = 15; width = 1; height = 1;];
+    edge [fontsize = 15;];
+    
+    rankdir = "LR";
+    
+    // States
+    START;
+    PARSE_ARGS;
+    BIND;
+    LISTEN;
+    ACCEPT;
+    READ_DATA;
+    RUN_COMMAND;
+    SEND_OUTPUT;
+    
+    START -> PARSE_ARGS [label = "parseArguments";];
+    PARSE_ARGS -> EXIT [label = "exitWithMessage";];
+    PARSE_ARGS -> BIND [label = "bindSocket";];
+    BIND -> EXIT [label = "exitWithMessage";];
+    BIND -> LISTEN [label = "receiveClients";];
+    LISTEN -> LISTEN [label = "receiveClients";];
+    LISTEN -> ACCEPT [label = "handleConnection";];
+    ACCEPT -> SEND_OUTPUT [label = "sendOutput";];
+    ACCEPT -> READ_DATA;
+    READ_DATA -> RUN_COMMAND [label = "runCommand";];
+    RUN_COMMAND -> SEND_OUTPUT [label = "sendOutput";];
+    SEND_OUTPUT -> LISTEN [label = "receiveClients";];
+}

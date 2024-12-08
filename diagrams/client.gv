@@ -1,0 +1,23 @@
+digraph Client {
+    node [shape = circle; fontsize = 15; width = 1; height = 1;];
+    edge [fontsize = 15;];
+    
+    rankdir = "LR";
+    
+    // States
+    START;
+    PARSE_ARGS;
+    CONNECT;
+    SEND_COMMAND;
+    RECEIVE_RESPONSE;
+    EXIT;
+    
+    START -> PARSE_ARGS [label = "validateArgs";];
+    PARSE_ARGS -> EXIT [label = "exitWithMessage";];
+    PARSE_ARGS -> CONNECT [label = "connectToServer";];
+    CONNECT -> EXIT [label = "exitWithMessage";];
+    CONNECT -> SEND_COMMAND [label = "sendCommand";];
+    SEND_COMMAND -> EXIT [label = "exitWithMessage";];
+    SEND_COMMAND -> RECEIVE_RESPONSE [label = "receiveResponse";];
+    RECEIVE_RESPONSE -> EXIT;
+}
